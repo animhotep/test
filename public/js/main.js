@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 
 let scene, camera, renderer, birds = [];
-let mouse = new THREE.Vector2();
-let targetPosition = new THREE.Vector3(0, 10, 0);
-let raycaster = new THREE.Raycaster();
-let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -10); // Plane at y=10
 
 init();
 animate();
@@ -45,15 +41,6 @@ function init() {
     }
 
     window.addEventListener('resize', onWindowResize, false);
-    window.addEventListener('mousemove', onMouseMove, false);
-}
-
-function onMouseMove(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    raycaster.ray.intersectPlane(plane, targetPosition);
 }
 
 function createBird() {
@@ -103,17 +90,6 @@ function animate() {
     const time = Date.now() * 0.005;
 
     birds.forEach(bird => {
-        // Steer towards target
-        const dx = targetPosition.x - bird.mesh.position.x;
-        const dz = targetPosition.z - bird.mesh.position.z;
-        const targetAngle = Math.atan2(dz, dx);
-
-        // Smoothly rotate bird.angle towards targetAngle
-        let angleDiff = targetAngle - bird.angle;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        bird.angle += angleDiff * 0.05;
-
         // Move bird
         bird.mesh.position.x += Math.cos(bird.angle) * bird.speed;
         bird.mesh.position.z += Math.sin(bird.angle) * bird.speed;
