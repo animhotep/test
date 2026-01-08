@@ -21,6 +21,38 @@ let bladeTrail = [];
 const BLADE_MAX_POINTS = 12;
 const FRUIT_SPAWN_INTERVAL = 1200;
 let lastSpawnTime = 0;
+let audioCtx;
+
+const sfx = {
+    slice: () => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    },
+    gameOver: () => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 1);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1);
+    }
+};
 
 // DOM Elements
 const scoreElement = document.getElementById('score');
@@ -76,21 +108,19 @@ function init() {
     };
 
     window.addEventListener('pointerdown', (e) => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (!isGameStarted) return;
-        bladeTrail = [];
+        if (e.pointerType === 'touch') bladeTrail = [];
         handleInput(e.clientX, e.clientY);
     });
 
     window.addEventListener('pointermove', (e) => {
         if (!isGameStarted) return;
-        // Only track if mouse button is down OR it's a touch pointer
-        if (e.pointerType === 'touch' || e.buttons === 1) {
-            handleInput(e.clientX, e.clientY);
-        }
+        handleInput(e.clientX, e.clientY);
     });
 
-    window.addEventListener('pointerup', () => {
-        bladeTrail = [];
+    window.addEventListener('pointerup', (e) => {
+        if (e.pointerType === 'touch') bladeTrail = [];
     });
 }
 
@@ -110,6 +140,7 @@ function startGame() {
 function gameOver() {
     isGameStarted = false;
     isGameOver = true;
+    sfx.gameOver();
     overlay.classList.remove('hidden');
     overlay.querySelector('h1').innerText = 'GAME OVER';
     overlay.querySelector('h1').style.background = 'linear-gradient(45deg, #e74c3c, #c0392b)';
@@ -184,6 +215,7 @@ function sliceFruit(fruit, index, cutPos) {
     // 2. Update Score
     score += 10;
     updateScoreUI();
+    sfx.slice();
 
     // 3. Create Particles (Juice)
     createJuiceParticles(fruit.position, type.juice);
