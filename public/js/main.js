@@ -67,13 +67,30 @@ function init() {
 
     startBtn.addEventListener('click', startGame);
 
-    window.addEventListener('mousemove', (e) => {
+    const handleInput = (x, y) => {
         if (!isGameStarted) return;
-        const currentPos = { x: e.clientX, y: e.clientY };
+        const currentPos = { x, y };
         bladeTrail.push({ ...currentPos, timestamp: Date.now() });
         if (bladeTrail.length > BLADE_MAX_POINTS) bladeTrail.shift();
-        
         checkCollisions(currentPos);
+    };
+
+    window.addEventListener('pointerdown', (e) => {
+        if (!isGameStarted) return;
+        bladeTrail = [];
+        handleInput(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('pointermove', (e) => {
+        if (!isGameStarted) return;
+        // Only track if mouse button is down OR it's a touch pointer
+        if (e.pointerType === 'touch' || e.buttons === 1) {
+            handleInput(e.clientX, e.clientY);
+        }
+    });
+
+    window.addEventListener('pointerup', () => {
+        bladeTrail = [];
     });
 }
 
