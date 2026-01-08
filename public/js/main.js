@@ -1,114 +1,306 @@
-import * as THREE from 'three';
+const { Engine, Render, Runner, Bodies, Composite, Vector, Body, Events } = Matter;
 
-let scene, camera, renderer, birds = [];
+const FRUIT_TYPES = [
+    { label: 'watermelon', color: '#2ecc71', juice: '#e74c3c', radius: 45 },
+    { label: 'orange', color: '#f39c12', juice: '#e67e22', radius: 35 },
+    { label: 'kiwi', color: '#c0392b', juice: '#2ecc71', radius: 30 },
+    { label: 'lemon', color: '#f1c40f', juice: '#f1c40f', radius: 25 }
+];
 
-init();
-animate();
+// Game State
+let engine;
+let runner;
+let score = 0;
+let missed = 0;
+const MAX_MISSED = 3;
+let isGameStarted = false;
+let isGameOver = false;
+let fruits = [];
+let particles = [];
+let bladeTrail = [];
+const BLADE_MAX_POINTS = 12;
+const FRUIT_SPAWN_INTERVAL = 1200;
+let lastSpawnTime = 0;
+
+// DOM Elements
+const scoreElement = document.getElementById('score');
+const startBtn = document.getElementById('start-btn');
+const overlay = document.getElementById('overlay');
 
 function init() {
-    // Scene setup
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb); // Sky blue
+    // 1. Setup Engine
+    engine = Engine.create();
+    engine.gravity.y = 0.1; // Reduced gravity for slower falling
 
-    // Camera setup
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 10, 20);
-    camera.lookAt(0, 0, 0);
+    // 2. Setup Custom Rendering
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.getElementById('game-container').appendChild(canvas);
+    const ctx = canvas.getContext('2d');
 
-    // Renderer setup
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    // 3. Runner
+    runner = Runner.create();
+    Runner.run(runner, engine);
 
-    // Light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+    // 4. Game Loop (for custom rendering)
+    (function update(time) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        if (isGameStarted) {
+            handleSpawning(time);
+            updateBladeTrail();
+            updateParticles(ctx);
+        }
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 20, 10);
-    scene.add(directionalLight);
+        renderFruits(ctx);
+        renderBladeTrail(ctx);
 
-    // Green Field
-    const geometry = new THREE.PlaneGeometry(100, 100);
-    const material = new THREE.MeshPhongMaterial({ color: 0x228b22, side: THREE.DoubleSide });
-    const field = new THREE.Mesh(geometry, material);
-    field.rotation.x = -Math.PI / 2;
-    scene.add(field);
+        requestAnimationFrame(update);
+    })(0);
 
-    // Birds
-    for (let i = 0; i < 20; i++) {
-        createBird();
-    }
-
-    window.addEventListener('resize', onWindowResize, false);
-}
-
-function createBird() {
-    const group = new THREE.Group();
-
-    // Simple bird made of two wings
-    const wingGeometry = new THREE.PlaneGeometry(1, 0.5);
-    const wingMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-
-    const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
-    leftWing.position.x = -0.5;
-    group.add(leftWing);
-
-    const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
-    rightWing.position.x = 0.5;
-    group.add(rightWing);
-
-    // Initial position and velocity
-    group.position.set(
-        Math.random() * 40 - 20,
-        5 + Math.random() * 10,
-        Math.random() * 40 - 20
-    );
-
-    const birdData = {
-        mesh: group,
-        leftWing: leftWing,
-        rightWing: rightWing,
-        speed: 0.1 + Math.random() * 0.1,
-        angle: Math.random() * Math.PI * 2,
-        wingPhase: Math.random() * Math.PI * 2
-    };
-
-    scene.add(group);
-    birds.push(birdData);
-}
-
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function animate() {
-    requestAnimationFrame(animate);
-
-    const time = Date.now() * 0.005;
-
-    birds.forEach(bird => {
-        // Move bird
-        bird.mesh.position.x += Math.cos(bird.angle) * bird.speed;
-        bird.mesh.position.z += Math.sin(bird.angle) * bird.speed;
-
-        // Keep bird within bounds
-        if (bird.mesh.position.x > 50) bird.mesh.position.x = -50;
-        if (bird.mesh.position.x < -50) bird.mesh.position.x = 50;
-        if (bird.mesh.position.z > 50) bird.mesh.position.z = -50;
-        if (bird.mesh.position.z < -50) bird.mesh.position.z = 50;
-
-        // Orient bird
-        bird.mesh.rotation.y = -bird.angle + Math.PI / 2;
-
-        // Flap wings
-        bird.wingPhase += 0.2;
-        const wingRotation = Math.sin(bird.wingPhase) * 0.5;
-        bird.leftWing.rotation.z = wingRotation;
-        bird.rightWing.rotation.z = -wingRotation;
+    // 5. Events
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
     });
 
-    renderer.render(scene, camera);
+    startBtn.addEventListener('click', startGame);
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isGameStarted) return;
+        const currentPos = { x: e.clientX, y: e.clientY };
+        bladeTrail.push({ ...currentPos, timestamp: Date.now() });
+        if (bladeTrail.length > BLADE_MAX_POINTS) bladeTrail.shift();
+        
+        checkCollisions(currentPos);
+    });
 }
+
+function startGame() {
+    isGameStarted = true;
+    isGameOver = false;
+    overlay.classList.add('hidden');
+    score = 0;
+    missed = 0;
+    updateScoreUI();
+    
+    // Clear any existing bodies
+    fruits.forEach(f => Composite.remove(engine.world, f));
+    fruits = [];
+}
+
+function gameOver() {
+    isGameStarted = false;
+    isGameOver = true;
+    overlay.classList.remove('hidden');
+    overlay.querySelector('h1').innerText = 'GAME OVER';
+    overlay.querySelector('h1').style.background = 'linear-gradient(45deg, #e74c3c, #c0392b)';
+    overlay.querySelector('h1').style.webkitBackgroundClip = 'text';
+    startBtn.innerText = 'TRY AGAIN';
+}
+
+function spawnFruit() {
+    const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+    const x = Math.random() * (window.innerWidth - 100) + 50;
+    const y = -50; // Spawn at the top
+    
+    const fruit = Bodies.circle(x, y, type.radius, {
+        restitution: 0.5,
+        frictionAir: 0.01,
+        label: 'fruit',
+        fruitType: type
+    });
+
+    // Let it fall naturally or give a tiny downward nudge
+    const forceX = (Math.random() - 0.5) * 0.05;
+    const forceY = Math.random() * 0.05; // Tiny bit of downward force
+    Body.applyForce(fruit, fruit.position, { x: forceX, y: forceY });
+    Body.setAngularVelocity(fruit, (Math.random() - 0.5) * 0.1);
+
+    Composite.add(engine.world, fruit);
+    fruits.push(fruit);
+}
+
+function handleSpawning(time) {
+    if (time - lastSpawnTime > FRUIT_SPAWN_INTERVAL) {
+        spawnFruit();
+        lastSpawnTime = time;
+    }
+
+    // Cleanup off-screen fruits
+    fruits = fruits.filter(fruit => {
+        if (fruit.position.y > window.innerHeight + 100) {
+            Composite.remove(engine.world, fruit);
+            if (isGameStarted) {
+                missed++;
+                document.getElementById('missed').innerText = missed + '/' + MAX_MISSED;
+                if (missed >= MAX_MISSED) gameOver();
+            }
+            return false;
+        }
+        return true;
+    });
+}
+
+function checkCollisions(mousePos) {
+    if (bladeTrail.length < 2) return;
+    
+    const prevPos = bladeTrail[bladeTrail.length - 2];
+    
+    for (let i = fruits.length - 1; i >= 0; i--) {
+        const fruit = fruits[i];
+        const dist = getDistanceToSegment(fruit.position, prevPos, mousePos);
+        if (dist < fruit.fruitType.radius + 10) {
+            sliceFruit(fruit, i, mousePos);
+        }
+    }
+}
+
+function sliceFruit(fruit, index, cutPos) {
+    const type = fruit.fruitType;
+    
+    // 1. Remove original
+    Composite.remove(engine.world, fruit);
+    fruits.splice(index, 1);
+    
+    // 2. Update Score
+    score += 10;
+    updateScoreUI();
+
+    // 3. Create Particles (Juice)
+    createJuiceParticles(fruit.position, type.juice);
+
+    // 4. Create Halves
+    const prevPos = bladeTrail[bladeTrail.length - 2] || cutPos;
+    const angle = Math.atan2(cutPos.y - prevPos.y, cutPos.x - prevPos.x);
+    spawnHalves(fruit.position, type, angle);
+}
+
+function spawnHalves(pos, type, angle) {
+    for (let i = 0; i < 2; i++) {
+        const side = i === 0 ? -1 : 1;
+        const offset = {
+            x: Math.cos(angle + Math.PI / 2) * side * 10,
+            y: Math.sin(angle + Math.PI / 2) * side * 10
+        };
+        
+        const half = Bodies.circle(pos.x + offset.x, pos.y + offset.y, type.radius * 0.7, {
+            collisionFilter: { group: -1 },
+            label: 'half',
+            render: { fillStyle: type.color }
+        });
+        half.customColor = type.color;
+        
+        const forceMagnitude = 0.03;
+        const force = {
+            x: Math.cos(angle + Math.PI / 2) * side * forceMagnitude,
+            y: Math.sin(angle + Math.PI / 2) * side * forceMagnitude - 0.01
+        };
+        
+        Body.applyForce(half, half.position, force);
+        Body.setAngularVelocity(half, side * 0.1);
+        
+        Composite.add(engine.world, half);
+        
+        setTimeout(() => Composite.remove(engine.world, half), 1000);
+    }
+}
+
+function createJuiceParticles(pos, color) {
+    for (let i = 0; i < 20; i++) {
+        particles.push({
+            x: pos.x,
+            y: pos.y,
+            vx: (Math.random() - 0.5) * 15,
+            vy: (Math.random() - 0.5) * 15,
+            life: 1.0,
+            color: color
+        });
+    }
+}
+
+function updateParticles(ctx) {
+    particles = particles.filter(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.2; // Gravity
+        p.life -= 0.02;
+        
+        if (p.life > 0) {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            return true;
+        }
+        return false;
+    });
+    ctx.globalAlpha = 1;
+}
+
+function updateBladeTrail() {
+    const now = Date.now();
+    bladeTrail = bladeTrail.filter(p => now - p.timestamp < 150);
+}
+
+function renderBladeTrail(ctx) {
+    if (bladeTrail.length < 2) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(bladeTrail[0].x, bladeTrail[0].y);
+    for (let i = 1; i < bladeTrail.length; i++) {
+        ctx.lineTo(bladeTrail[i].x, bladeTrail[i].y);
+    }
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Glow effect
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+}
+
+function renderFruits(ctx) {
+    const bodies = Composite.allBodies(engine.world);
+    bodies.forEach(body => {
+        ctx.beginPath();
+        const vertices = body.vertices;
+        ctx.moveTo(vertices[0].x, vertices[0].y);
+        for (let i = 1; i < vertices.length; i++) {
+            ctx.lineTo(vertices[i].x, vertices[i].y);
+        }
+        ctx.closePath();
+        
+        if (body.label === 'fruit') {
+            ctx.fillStyle = body.fruitType.color;
+        } else if (body.label === 'half') {
+            ctx.fillStyle = body.customColor;
+        } else {
+            ctx.fillStyle = '#f1c40f';
+        }
+        ctx.fill();
+        
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+}
+
+function updateScoreUI() {
+    scoreElement.innerText = score;
+}
+
+function getDistanceToSegment(p, a, b) {
+    const l2 = Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2);
+    if (l2 === 0) return Math.sqrt(Math.pow(p.x - a.x, 2) + Math.pow(p.y - a.y, 2));
+    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.sqrt(Math.pow(p.x - (a.x + t * (b.x - a.x)), 2) + Math.pow(p.y - (a.y + t * (b.y - a.y)), 2));
+}
+
+init();

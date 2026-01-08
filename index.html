@@ -3,21 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Green Field with Flying Birds</title>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
-    </style>
+    <title>Sensi Slice - Premium Fruit Cutting</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="public/css/style.css">
 </head>
 <body>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="score-container">
+                <div class="score-label">Score</div>
+                <div id="score">0</div>
+            </div>
+
+            <div class="score-container">
+                <div class="score-label">Missed</div>
+                <div id="missed"></div>
+            </div>
+        </div>
+        <div id="overlay">
+            <h1>SENSI SLICE</h1>
+            <button class="start-btn" id="start-btn">START SLICING</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script type="module" src="public/js/main.js"></script>
 </body>
 </html>
