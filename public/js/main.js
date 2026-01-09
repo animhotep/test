@@ -1,10 +1,11 @@
 const { Engine, Render, Runner, Bodies, Composite, Vector, Body, Events } = Matter;
 
 const FRUIT_TYPES = [
-    { label: 'watermelon', color: '#2ecc71', juice: '#e74c3c', radius: 45 },
-    { label: 'orange', color: '#f39c12', juice: '#e67e22', radius: 35 },
-    { label: 'kiwi', color: '#c0392b', juice: '#2ecc71', radius: 30 },
-    { label: 'lemon', color: '#f1c40f', juice: '#f1c40f', radius: 25 }
+    { label: 'watermelon', color: '#2ecc71', juice: '#e74c3c', radius: 100, shape: 'watermelon' },
+    { label: 'orange', color: '#f39c12', juice: '#e67e22', radius: 40, shape: 'circle' },
+    { label: 'apple', color: '#e74c3c', juice: '#f1c40f', radius: 50, shape: 'apple' },
+    { label: 'banana', color: '#f1c40f', juice: '#f1c40f', radius: 50, shape: 'banana' },
+    { label: 'pizza', color: '#f1c40f', juice: '#e67e22', radius: 60, shape: 'pizza' }
 ];
 
 // Game State
@@ -317,27 +318,141 @@ function renderBladeTrail(ctx) {
 function renderFruits(ctx) {
     const bodies = Composite.allBodies(engine.world);
     bodies.forEach(body => {
-        ctx.beginPath();
-        const vertices = body.vertices;
-        ctx.moveTo(vertices[0].x, vertices[0].y);
-        for (let i = 1; i < vertices.length; i++) {
-            ctx.lineTo(vertices[i].x, vertices[i].y);
-        }
-        ctx.closePath();
-        
         if (body.label === 'fruit') {
-            ctx.fillStyle = body.fruitType.color;
+            const { x, y } = body.position;
+            const angle = body.angle;
+            const type = body.fruitType;
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            drawFruitShape(ctx, type);
+
+            ctx.restore();
         } else if (body.label === 'half') {
+            const { x, y } = body.position;
+            const angle = body.angle;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            
+            // Draw a simple half-circle for halves
+            ctx.beginPath();
+            ctx.arc(0, 0, body.circleRadius, Math.PI, 0);
+            ctx.closePath();
             ctx.fillStyle = body.customColor;
-        } else {
-            ctx.fillStyle = '#f1c40f';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.stroke();
+            
+            ctx.restore();
         }
-        ctx.fill();
-        
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
     });
+}
+
+function drawFruitShape(ctx, type) {
+    const r = type.radius;
+    
+    switch (type.shape) {
+        case 'watermelon':
+            // Main body
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fillStyle = type.color;
+            ctx.fill();
+            
+            // Stripes
+            ctx.strokeStyle = '#0a1e12ff';
+            ctx.lineWidth = 4;
+            for (let i = 0; i < 6; i++) {
+                ctx.beginPath();
+                const angle = (i / 6) * Math.PI * 2;
+                ctx.moveTo(Math.cos(angle) * r * 0.2, Math.sin(angle) * r * 0.2);
+                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+                ctx.stroke();
+            }
+            break;
+            
+        case 'banana':
+            ctx.beginPath();
+            ctx.moveTo(-r, 0);
+            ctx.quadraticCurveTo(0, r, r, -r * 0.2);
+            ctx.quadraticCurveTo(0, r * 0.5, -r, 0);
+            ctx.fillStyle = type.color;
+            ctx.fill();
+            // Tips
+            ctx.fillStyle = '#f39c12';
+            ctx.beginPath();
+            ctx.arc(-r, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+            
+        case 'apple':
+            // Body
+            ctx.beginPath();
+            ctx.moveTo(0, r * 0.2);
+            ctx.bezierCurveTo(-r * 0.8, -r * 0.2, -r, r, 0, r);
+            ctx.bezierCurveTo(r, r, r * 0.8, -r * 0.2, 0, r * 0.2);
+            ctx.fillStyle = type.color;
+            ctx.fill();
+            
+            // Stem
+            ctx.strokeStyle = '#5d4037';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, r * 0.2);
+            ctx.lineTo(0, -r * 0.3);
+            ctx.stroke();
+            
+            // Leaf
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath();
+            ctx.ellipse(r * 0.2, -r * 0.3, r * 0.3, r * 0.15, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+
+        case 'pizza':
+            // Triangle slice
+            ctx.beginPath();
+            ctx.moveTo(0, -r); // Top tip
+            ctx.lineTo(-r * 0.8, r); // Bottom left
+            ctx.lineTo(r * 0.8, r);  // Bottom right
+            ctx.closePath();
+            ctx.fillStyle = '#f1c40f'; // Cheese yellow
+            ctx.fill();
+
+            // Crust
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.85, r);
+            ctx.quadraticCurveTo(0, r + 10, r * 0.85, r);
+            ctx.strokeStyle = '#d35400'; // Crust orange
+            ctx.lineWidth = 8;
+            ctx.stroke();
+
+            // Toppings (pepperoni)
+            ctx.fillStyle = '#c0392b';
+            for (let i = 0; i < 3; i++) {
+                const tx = (Math.random() - 0.5) * r * 0.6;
+                const ty = (Math.random() - 0.5) * r * 0.6 + r * 0.2;
+                ctx.beginPath();
+                ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            break;
+            
+        default: // Circle
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fillStyle = type.color;
+            ctx.fill();
+            break;
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
 }
 
 function updateScoreUI() {
