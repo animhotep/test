@@ -13,7 +13,7 @@ let engine;
 let runner;
 let score = 0;
 let missed = 0;
-const MAX_MISSED = 3;
+const MAX_MISSED = 4;
 let isGameStarted = false;
 let isGameOver = false;
 let fruits = [];
@@ -147,6 +147,9 @@ function gameOver() {
     overlay.querySelector('h1').style.background = 'linear-gradient(45deg, #e74c3c, #c0392b)';
     overlay.querySelector('h1').style.webkitBackgroundClip = 'text';
     startBtn.innerText = 'TRY AGAIN';
+    setTimeout(() => {
+        startGame();
+    }, 4500);
 }
 
 function spawnFruit() {
@@ -183,7 +186,6 @@ function handleSpawning(time) {
             Composite.remove(engine.world, fruit);
             if (isGameStarted) {
                 missed++;
-                document.getElementById('missed').innerText = missed + '/' + MAX_MISSED;
                 if (missed >= MAX_MISSED) gameOver();
             }
             return false;
