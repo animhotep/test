@@ -1,3 +1,23 @@
+const ndef = new NDEFReader();
+ndef
+  .scan()
+  .then(() => {
+    console.log("Scan started successfully.");
+    ndef.onreadingerror = (event) => {
+      console.log(
+        "Error! Cannot read data from the NFC tag. Try a different one?",
+      );
+    };
+    ndef.onreading = (event) => {
+      document.getElementById('nfc').innerText = JSON.stringify(eventest);  
+      console.log("NDEF message read.");
+    };
+  })
+  .catch((error) => {
+    console.log(`Error! Scan failed to start: ${error}.`);
+  });
+
+
 const { Engine, Render, Runner, Bodies, Composite, Vector, Body, Events } = Matter;
 
 const FRUIT_TYPES = [
